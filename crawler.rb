@@ -6,11 +6,13 @@ require 'logger'
 
 class Crawler
 
+  LOGS_DIR = "logs"
+
   def initialize url
     @base_url = url
     uri = URI.parse(@base_url)
-    @logger_ok = Logger.new("logs/#{uri.host}.ok.log")
-    @logger_err = Logger.new("logs/#{uri.host}.error.log")
+    @logger_ok = Logger.new("#{LOGS_DIR}/#{uri.host}.ok.log")
+    @logger_err = Logger.new("#{LOGS_DIR}/#{uri.host}.error.log")
     @http = Net::HTTP.new(uri.host, uri.port)
     @links = []
     @results = {}
@@ -68,8 +70,10 @@ class Crawler
 
 end
 
-#Crawler.new('http://nick-1.nick.de').go
 @domain = ARGV[0]
+
+unless File.directory?(Crawler::LOGS_DIR)
+  FileUtils.mkdir_p(Crawler::LOGS_DIR)
+end
+
 Crawler.new("http://#{@domain}").go
-
-

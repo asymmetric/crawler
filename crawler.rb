@@ -9,11 +9,9 @@ class Crawler
   LOGS_DIR = "logs"
 
   def initialize url
-    @base_url = url
-    uri = URI.parse(@base_url)
-    @logger_ok = Logger.new("#{LOGS_DIR}/#{uri.host}.ok.log")
-    @logger_err = Logger.new("#{LOGS_DIR}/#{uri.host}.error.log")
-    @http = Net::HTTP.new(uri.host, uri.port)
+    find_base_url(url)
+    @logger_ok = Logger.new("#{LOGS_DIR}/#{@uri.host}.ok.log")
+    @logger_err = Logger.new("#{LOGS_DIR}/#{@uri.host}.error.log")
     @links = []
     @results = {}
   end
@@ -46,7 +44,7 @@ class Crawler
         @logger_err.error "#{code}: #{path}"
       end 
     end
-  end  
+  end
 
   def go
     parse '/', true
@@ -68,6 +66,21 @@ class Crawler
     end
   end
 
+  private
+  def find_base_url(base_url)
+    uri = URI.parse(base_url)
+    request = Net::HTTP::Get.new('/')
+    http = Net::HTTP.new(uri.host, uri.port)
+    response = http.request(request)
+    code = response.code.to_i
+    if code == 301 || code == 302
+      find_base_url response.header['location']
+    else
+      @base_url = base_url
+      @http = http
+      @uri = uri
+    end
+  end
 end
 
 @domain = ARGV[0]

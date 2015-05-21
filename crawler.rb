@@ -1,6 +1,6 @@
 require 'rubygems'
 require 'bundler'
-Bundler.require :default, ENV['APP_ENV'] || :production
+Bundler.require :default, ENV['APP_ENV'] || :development
 
 class Crawler
 

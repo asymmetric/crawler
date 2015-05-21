@@ -25,7 +25,7 @@ class Crawler
   end
 
   def parse path, get_links=false
-    uri = URI.parse(path)
+    URI.parse(path)
     request = Net::HTTP::Get.new(path)
     response = @http.request(request)
     code = response.code.to_i
@@ -44,6 +44,8 @@ class Crawler
         @logger_err.error "#{code}: #{path}"
       end 
     end
+    rescue URI::InvalidURIError
+      @logger_err.error "Error parsing #{path}"
   end
 
   def go

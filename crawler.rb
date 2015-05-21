@@ -14,38 +14,6 @@ class Crawler
     @results = {}
   end
 
-  def add_link path
-    path.gsub!(Regexp.new("^#{@base_url}"), "")
-    path.gsub('\"')
-    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
-      @links << path
-    end
-  end
-
-  def parse path, get_links=false
-    URI.parse(path)
-    request = Net::HTTP::Get.new(path)
-    response = @http.request(request)
-    code = response.code.to_i
-    @results[path] = code
-    if get_links
-      if code < 400
-        @logger_ok.debug "#{code} : #{path}"
-        doc = Nokogiri::HTML(response.body)
-        doc.css('a').each do |node|
-          # insert the link
-          link = node['href']
-          next unless link
-          add_link link
-        end
-      else
-        @logger_err.error "#{code}: #{path}"
-      end
-    end
-    rescue URI::InvalidURIError
-      @logger_err.error "Error parsing #{path}"
-  end
-
   def go
     parse '/', true
     @links.uniq!
@@ -81,6 +49,39 @@ class Crawler
       @uri = uri
     end
   end
+
+  def add_link path
+    path.gsub!(Regexp.new("^#{@base_url}"), "")
+    path.gsub('\"')
+    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
+      @links << path
+    end
+  end
+
+  def parse path, get_links=false
+    URI.parse(path)
+    request = Net::HTTP::Get.new(path)
+    response = @http.request(request)
+    code = response.code.to_i
+    @results[path] = code
+    if get_links
+      if code < 400
+        @logger_ok.debug "#{code} : #{path}"
+        doc = Nokogiri::HTML(response.body)
+        doc.css('a').each do |node|
+          # insert the link
+          link = node['href']
+          next unless link
+          add_link link
+        end
+      else
+        @logger_err.error "#{code}: #{path}"
+      end
+    end
+    rescue URI::InvalidURIError
+      @logger_err.error "Error parsing #{path}"
+  end
+
 end
 
 @domain = ARGV[0]

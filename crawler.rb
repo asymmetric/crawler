@@ -1,8 +1,6 @@
-require "net/http"
-require "uri"
-require 'nokogiri'
-require 'awesome_print'
-require 'logger'
+require 'rubygems'
+require 'bundler'
+Bundler.require :default, ENV['APP_ENV'] || :production
 
 class Crawler
 

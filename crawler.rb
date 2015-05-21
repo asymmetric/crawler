@@ -7,6 +7,7 @@ class Crawler
   LOGS_DIR = "logs"
 
   def initialize url
+    @redis = Redis.new
     find_base_url(url)
     @logger_ok = Logger.new("#{LOGS_DIR}/#{@uri.host}.ok.log")
     @logger_err = Logger.new("#{LOGS_DIR}/#{@uri.host}.error.log")
@@ -16,17 +17,17 @@ class Crawler
 
   def go
     parse '/', true
-    @links.uniq!
-    @logger_ok.info "Level 1: found #{@links.count} links: parsing its"
-    @links.each do |link|
-      @links.delete(link)
+    count = @redis.scard 'links'
+    @logger_ok.info "Level 1: found #{count} links: parsing its"
+    @redis.smembers('links').each do |link|
+      @redis.srem 'links', link
       parse link, true
     end
-    @links.uniq!
-    @logger_ok.info "Level 2: found #{@links.count} links: parsing its"
-    @links.each do |link|
-      @links.delete(link)
-      parse link
+    count = @redis.scard 'links'
+    @logger_ok.info "Level 2: found #{count} links: parsing its"
+    @redis.smembers('links').each do |link|
+      @redis.srem 'links', link
+      parse link, true
     end
     @results.each do |url, code|
       @logger_ok.info "#{code} #{url}"
@@ -54,7 +55,7 @@ class Crawler
     path.gsub!(Regexp.new("^#{@base_url}"), "")
     path.gsub('\"')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
-      @links << path
+      @redis.sadd 'links', path
     end
   end
 

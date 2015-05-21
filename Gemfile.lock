@@ -18,6 +18,7 @@ GEM
     pry-byebug (3.1.0)
       byebug (~> 4.0)
       pry (~> 0.10)
+    redis (3.2.1)
     slop (3.6.0)
 
 PLATFORMS
@@ -28,3 +29,4 @@ DEPENDENCIES
   logger
   nokogiri
   pry-byebug
+  redis

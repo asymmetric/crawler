@@ -17,8 +17,8 @@ class Crawler
   def add_link path
     path.gsub!(Regexp.new("^#{@base_url}"), "")
     path.gsub('\"')
-    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)      
-      @links << path 
+    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
+      @links << path
     end
   end
 
@@ -33,14 +33,14 @@ class Crawler
         @logger_ok.debug "#{code} : #{path}"
         doc = Nokogiri::HTML(response.body)
         doc.css('a').each do |node|
-          # insert the link        
+          # insert the link
           link = node['href']
           next unless link
-          add_link link             
+          add_link link
         end
-      else 
+      else
         @logger_err.error "#{code}: #{path}"
-      end 
+      end
     end
     rescue URI::InvalidURIError
       @logger_err.error "Error parsing #{path}"

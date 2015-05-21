@@ -7,4 +7,5 @@ gem 'redis'
 
 group :development do
   gem 'pry-byebug'
+  gem 'foreman'
 end

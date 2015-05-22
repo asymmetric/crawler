@@ -9,9 +9,14 @@ class Crawler
   def initialize url
     @redis = Redis.new
     @redis.flushdb
-    find_base_url(url)
-    @logger_ok = Logger.new("#{LOGS_DIR}/#{@uri.host}.ok.log")
-    @logger_err = Logger.new("#{LOGS_DIR}/#{@uri.host}.error.log")
+    @connection = Excon.new(
+      url,
+      persistent: true,
+      middlewares: Excon.defaults[:middlewares] + [ Excon::Middleware::RedirectFollower ]
+    )
+    hostname = @connection.params[:hostname]
+    @logger_ok = Logger.new("#{LOGS_DIR}/#{hostname}.ok.log")
+    @logger_err = Logger.new("#{LOGS_DIR}/#{hostname}.error.log")
     @links = []
     @results = {}
     @total = 0
@@ -41,21 +46,6 @@ class Crawler
   end
 
   private
-  def find_base_url(base_url)
-    uri = URI.parse(base_url)
-    request = Net::HTTP::Get.new('/')
-    http = Net::HTTP.new(uri.host, uri.port)
-    response = http.request(request)
-    code = response.code.to_i
-    if code == 301 || code == 302
-      find_base_url response.header['location']
-    else
-      @base_url = base_url
-      @http = http
-      @uri = uri
-    end
-  end
-
   def add_link path
     path.gsub!(Regexp.new("^#{@base_url}"), "")
     path.gsub('\"')
@@ -66,14 +56,12 @@ class Crawler
   end
 
   def parse path, get_links=false
-    URI.parse(path)
-    request = Net::HTTP::Get.new(path)
-    response = @http.request(request)
-    code = response.code.to_i
-    @results[path] = code
+    response = @connection.get(path: path, persistent: true)
+    status_code = response.status
+    @results[path] = status_code
     if get_links
-      if code < 400
-        @logger_ok.debug "#{code} : #{path}"
+      if status_code < 400
+        @logger_ok.debug "#{status_code} : #{path}"
         doc = Nokogiri::HTML(response.body)
         doc.css('a').each do |node|
           # insert the link
@@ -82,7 +70,7 @@ class Crawler
           add_link link
         end
       else
-        @logger_err.error "#{code}: #{path}"
+        @logger_err.error "#{status_code}: #{path}"
       end
     end
     rescue URI::InvalidURIError

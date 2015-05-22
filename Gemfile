@@ -5,6 +5,7 @@ gem 'nokogiri'
 gem 'awesome_print'
 gem 'logger'
 gem 'redis'
+gem 'celluloid'
 
 group :development do
   gem 'pry-byebug'

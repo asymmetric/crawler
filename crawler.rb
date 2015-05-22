@@ -3,6 +3,7 @@ require 'bundler'
 Bundler.require :default, ENV['APP_ENV'] || :development
 
 class Crawler
+  include Celluloid
 
   LOGS_DIR = "logs"
 

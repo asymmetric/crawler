@@ -13,22 +13,26 @@ class Crawler
     @logger_err = Logger.new("#{LOGS_DIR}/#{@uri.host}.error.log")
     @links = []
     @results = {}
+    @total = 0
   end
 
   def go
     parse '/', true
     count = @redis.scard 'links'
+    @total = count
     @logger_ok.info "Level 1: found #{count} links: parsing its"
     @redis.smembers('links').each do |link|
       @redis.srem 'links', link
       parse link, true
     end
     count = @redis.scard 'links'
+    @total += count
     @logger_ok.info "Level 2: found #{count} links: parsing its"
     @redis.smembers('links').each do |link|
       @redis.srem 'links', link
       parse link, true
     end
+    puts "crawled #{@total} links"
     @results.each do |url, code|
       @logger_ok.info "#{code} #{url}"
       puts url

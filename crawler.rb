@@ -9,7 +9,11 @@ class Crawler
   def initialize url
     @redis = Redis.new
     @redis.flushdb
-    @connection = Excon.new(url, persistent: true, middlewares: Excon.defaults[:middlewares] + [ Excon::Middleware::RedirectFollower ])
+    @connection = Excon.new(
+      url,
+      persistent: true,
+      middlewares: Excon.defaults[:middlewares] + [ Excon::Middleware::RedirectFollower ]
+    )
     hostname = @connection.params[:hostname]
     @logger_ok = Logger.new("#{LOGS_DIR}/#{hostname}.ok.log")
     @logger_err = Logger.new("#{LOGS_DIR}/#{hostname}.error.log")

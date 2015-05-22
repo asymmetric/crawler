@@ -55,7 +55,7 @@ class Crawler
   end
 
   def parse path, get_links=false
-    response = @connection.get(persistent: true)
+    response = @connection.get(path: path, persistent: true)
     status_code = response.status
     @results[path] = status_code
     if get_links

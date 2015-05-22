@@ -15,8 +15,8 @@ class Crawler
       persistent: true,
       middlewares: Excon.defaults[:middlewares] + [ Excon::Middleware::RedirectFollower ]
     )
-    @logger_ok = Logger.new("#{LOGS_DIR}/crawler.log")
-    @logger_err = Logger.new("#{LOGS_DIR}/crawler.error.log")
+    @logger_ok = ::Logger.new("#{LOGS_DIR}/crawler.log")
+    @logger_err = ::Logger.new("#{LOGS_DIR}/crawler.error.log")
     @links = []
     @results = {}
     @total = 0

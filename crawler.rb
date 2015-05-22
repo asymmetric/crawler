@@ -59,6 +59,7 @@ class Crawler
   def add_link path
     path.gsub!(Regexp.new("^#{@base_url}"), "")
     path.gsub('\"')
+    path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
       @redis.sadd 'links', path
     end

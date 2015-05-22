@@ -8,6 +8,7 @@ class Crawler
 
   def initialize url
     @redis = Redis.new
+    @redis.flushdb
     find_base_url(url)
     @logger_ok = Logger.new("#{LOGS_DIR}/#{@uri.host}.ok.log")
     @logger_err = Logger.new("#{LOGS_DIR}/#{@uri.host}.error.log")

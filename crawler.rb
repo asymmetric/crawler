@@ -18,7 +18,6 @@ class Crawler
     )
     @logger_ok = ::Logger.new("#{LOGS_DIR}/crawler.log")
     @logger_err = ::Logger.new("#{LOGS_DIR}/crawler.error.log")
-    @links = []
   end
 
   def start

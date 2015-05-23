@@ -55,7 +55,12 @@ class Crawler
     path.gsub('\"')
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
-      $redis.sadd 'links', path
+      $redis.multi do
+        if $redis.sadd 'links', path
+          $redis.lpush 'blocker', true
+        end
+      end
+
     end
   end
 
@@ -71,9 +76,7 @@ class Crawler
           # insert the link
           link = node['href']
           next unless link
-          if add_link link
-            $redis.lpush 'blocker', true
-          end
+          add_link link
         end
       else
         $redis.hmset :error, path, status_code

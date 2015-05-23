@@ -23,8 +23,7 @@ class Crawler
 
   def start
     loop do
-      while (link = $redis.spop 'links') do
-        # process message
+      while (link = $redis.spop 'new-links') do
         @logger_ok.info "parsing #{link}"
         parse link, true
       end
@@ -34,10 +33,10 @@ class Crawler
 
   def root
     parse '/', true
-    count = $redis.scard 'links'
+    count = $redis.scard 'new-links'
     @total = count
     @logger_ok.info "Level 1: found #{count} links: parsing its"
-    count = $redis.scard 'links'
+    count = $redis.scard 'new-links'
     @total += count
     @logger_ok.info "Level 2: found #{count} links: parsing its"
     @logger_ok.info "crawled #{@total} total links"
@@ -55,12 +54,14 @@ class Crawler
     path.gsub('\"')
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
-      $redis.multi do
-        if $redis.sadd 'links', path
-          $redis.lpush 'blocker', true
+      unless $redis.sismember 'visited-links', path
+        $redis.multi do
+          if $redis.sadd 'new-links', path
+            $redis.sadd 'visited-links', path
+            $redis.lpush 'blocker', true
+          end
         end
       end
-
     end
   end
 

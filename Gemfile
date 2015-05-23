@@ -5,7 +5,7 @@ gem 'nokogiri'
 gem 'awesome_print'
 gem 'logger'
 gem 'redis'
-gem 'celluloid', require: 'celluloid/autostart'
+gem 'celluloid', require: 'celluloid/current'
 
 group :development do
   gem 'pry-byebug'

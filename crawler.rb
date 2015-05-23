@@ -2,14 +2,15 @@ require 'rubygems'
 require 'bundler'
 Bundler.require :default, ENV['APP_ENV'] || :development
 
+$redis = Redis.new
+$redis.flushdb
+
 class Crawler
   include Celluloid
 
   LOGS_DIR = "logs"
 
   def initialize url
-    @redis = Redis.new
-    @redis.flushdb
     @connection = Excon.new(
       url,
       persistent: true,
@@ -18,30 +19,33 @@ class Crawler
     @logger_ok = ::Logger.new("#{LOGS_DIR}/crawler.log")
     @logger_err = ::Logger.new("#{LOGS_DIR}/crawler.error.log")
     @links = []
-    @results = {}
-    @total = 0
   end
 
-  def go
+  def start
+    loop do
+      while (link = $redis.spop 'links') do
+        # process message
+        @logger_ok.info "parsing #{link}"
+        parse link, true
+      end
+      $redis.brpop 'blocker'
+    end
+  end
+
+  def root
     parse '/', true
-    count = @redis.scard 'links'
+    count = $redis.scard 'links'
     @total = count
     @logger_ok.info "Level 1: found #{count} links: parsing its"
-    @redis.smembers('links').each do |link|
-      @redis.srem 'links', link
-      parse link, true
-    end
-    count = @redis.scard 'links'
+    count = $redis.scard 'links'
     @total += count
     @logger_ok.info "Level 2: found #{count} links: parsing its"
-    @redis.smembers('links').each do |link|
-      @redis.srem 'links', link
-      parse link, true
+    @logger_ok.info "crawled #{@total} total links"
+    $redis.hgetall(:success).each do |path|
+      @logger_ok.info path
     end
-    puts "crawled #{@total} links"
-    @results.each do |url, code|
-      @logger_ok.info "#{code} #{url}"
-      puts url
+    $redis.hgetall(:error).each do |path|
+      @logger_ok.error path
     end
   end
 
@@ -50,26 +54,29 @@ class Crawler
     path.gsub!(Regexp.new("^#{@base_url}"), "")
     path.gsub('\"')
     path.gsub!(/#(.*)$/, '')
-    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/) || (@results[path] && @results[path] > 0)
-      @redis.sadd 'links', path
+    unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
+      $redis.sadd 'links', path
     end
   end
 
   def parse path, get_links=false
     response = @connection.get(path: path, persistent: true)
     status_code = response.status
-    @results[path] = status_code
     if get_links
       if status_code < 400
-        @logger_ok.debug "#{status_code} : #{path}"
+        $redis.hmset :success, path, status_code
+        # @logger_ok.debug "#{status_code} : #{path}"
         doc = Nokogiri::HTML(response.body)
         doc.css('a').each do |node|
           # insert the link
           link = node['href']
           next unless link
-          add_link link
+          if add_link link
+            $redis.lpush 'blocker', true
+          end
         end
       else
+        $redis.hmset :error, path, status_code
         @logger_err.error "#{status_code}: #{path}"
       end
     end
@@ -85,4 +92,11 @@ unless File.directory?(Crawler::LOGS_DIR)
   FileUtils.mkdir_p(Crawler::LOGS_DIR)
 end
 
-Crawler.new("http://#{@domain}").go
+
+#supervisor = Crawler.supervise "http://#{@domain}"
+#root = supervisor.actors.first
+root = Crawler.new "http://#{@domain}"
+root.root
+
+pool = Crawler.pool(args: "http://#{@domain}")
+pool.start

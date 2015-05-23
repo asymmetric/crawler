@@ -95,11 +95,14 @@ unless File.directory?(Crawler::LOGS_DIR)
   FileUtils.mkdir_p(Crawler::LOGS_DIR)
 end
 
+POOL_SIZE = 10
 
 #supervisor = Crawler.supervise "http://#{@domain}"
 #root = supervisor.actors.first
 root = Crawler.new "http://#{@domain}"
 root.root
 
-pool = Crawler.pool(args: "http://#{@domain}")
-pool.start
+pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
+futures = (1..POOL_SIZE).map { |x| pool.future.start }
+
+futures.map { |f| f.value }

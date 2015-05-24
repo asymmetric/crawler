@@ -105,4 +105,4 @@ root.root
 pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
 futures = (1..POOL_SIZE).map { |x| pool.future.start }
 
-futures.map { |f| f.value }
+futures.each { |f| f.value }

@@ -26,6 +26,7 @@ class Crawler
       end
       if $redis.brpop('blocker', 1).nil?
         Actor[:observer].async.job_done
+        break
       end
     end
   end

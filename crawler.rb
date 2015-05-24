@@ -71,11 +71,10 @@ class Crawler
       if status_code < 400
         $redis.hmset :success, path, status_code
         # @logger_ok.debug "#{status_code} : #{path}"
-        doc = Nokogiri::HTML(response.body)
-        doc.css('a').each do |node|
+        doc = Oga.parse_html(response.body)
+        doc.xpath('//a/@href').each do |a|
           # insert the link
-          link = node['href']
-          next unless link
+          link = a.value
           add_link link
         end
       else

@@ -21,12 +21,12 @@ class Crawler
   def start
     loop do
       while (link = $redis.spop 'new-links') do
-        info "Thread #{Thread.current.object_id} parsing #{link}"
+        debug "Thread #{Thread.current.object_id} parsing #{link}"
         parse link, true
       end
-      $redis.incr 'idle'
-      publish 'going idle'
-      $redis.brpop 'blocker'
+      if $redis.brpop('blocker', 2).nil?
+        Actor[:observer].async.job_done
+      end
     end
   end
 
@@ -48,14 +48,10 @@ class Crawler
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
       unless $redis.sismember 'visited-links', path
-        idle = $redis.get('idle')
-        $redis.multi do
           if $redis.sadd 'new-links', path
             $redis.sadd 'visited-links', path
-            $redis.decr 'idle' unless (idle == 0 || idle.nil? )
             $redis.lpush 'blocker', true
           end
-        end
       end
     end
   end
@@ -93,13 +89,14 @@ class Observer
   include Celluloid::Notifications
 
   def initialize
-    subscribe 'going idle', :on_idle
+    @workers_left = POOL_SIZE
   end
 
-  def on_idle(topic)
-    info "count: #{$redis.get('idle')}"
-    if $redis.get('idle').to_i >= POOL_SIZE
-      signal :all_idle
+  def job_done
+    @workers_left -= 1
+
+    if @workers_left == 0
+      signal(:all_idle)
     end
   end
 
@@ -109,24 +106,30 @@ class Observer
     errors = $redis.hkeys(:error).count
     oks = $redis.hkeys(:success).count
     info "crawled #{total} links, #{oks} OK, #{errors} errors"
-    $redis.hgetall(:success).each do |path|
-      info path
+    if errors > 0
+      info "ERRORS:"
+      info "------------------------"
+      $redis.hgetall(:error).each do |entry|
+        error "#{entry[0]}: #{entry[1]}"
+      end
     end
-    $redis.hgetall(:error).each do |path|
-      error path
-    end
-    info "exiting"
+    debug "exiting"
   end
 end
 
 @domain = ARGV[0]
 
-POOL_SIZE = 9
+POOL_SIZE = 3
 
 root = Crawler.new "http://#{@domain}"
 root.root
 
 pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
-(1..POOL_SIZE).map { |x| pool.async.start }
+Celluloid::Actor[:pool] = pool
+
 observer = Observer.new
+Celluloid::Actor[:observer] = observer
+
+(1..POOL_SIZE).map { |x| pool.async.start }
+
 observer.wait_all_idle

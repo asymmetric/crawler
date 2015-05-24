@@ -32,13 +32,6 @@ class Crawler
 
   def root
     parse '/', true
-    # count = $redis.scard 'new-links'
-    # @total = count
-    # info "Level 1: found #{count} links: parsing its"
-    # count = $redis.scard 'new-links'
-    # @total += count
-    # info "Level 2: found #{count} links: parsing its"
-    # info "crawled #{@total} total links"
   end
 
   private

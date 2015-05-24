@@ -23,6 +23,7 @@ class Crawler
         info "parsing #{link}"
         parse link, true
       end
+      $redis.sadd 'idle', object_id
       $redis.brpop 'blocker'
     end
   end
@@ -54,6 +55,7 @@ class Crawler
         $redis.multi do
           if $redis.sadd 'new-links', path
             $redis.sadd 'visited-links', path
+            $redis.spop 'idle', object_id
             $redis.lpush 'blocker', true
           end
         end

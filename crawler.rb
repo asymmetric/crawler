@@ -24,7 +24,7 @@ class Crawler
         debug "Thread #{Thread.current.object_id} parsing #{link}"
         parse link, true
       end
-      if $redis.brpop('blocker', 2).nil?
+      if $redis.brpop('blocker', 1).nil?
         Actor[:observer].async.job_done
       end
     end
@@ -112,6 +112,7 @@ class Observer
       $redis.hgetall(:error).each do |entry|
         error "#{entry[0]}: #{entry[1]}"
       end
+      info "------------------------"
     end
     debug "exiting"
   end

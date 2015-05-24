@@ -8,6 +8,7 @@ $redis.flushdb
 class Crawler
   include Celluloid
   include Celluloid::Logger
+  include Celluloid::Notifications
 
   def initialize url
     @connection = Excon.new(
@@ -20,29 +21,24 @@ class Crawler
   def start
     loop do
       while (link = $redis.spop 'new-links') do
-        info "parsing #{link}"
+        info "Thread #{Thread.current.object_id} parsing #{link}"
         parse link, true
       end
-      $redis.sadd 'idle', object_id
+      $redis.incr 'idle'
+      publish 'going idle'
       $redis.brpop 'blocker'
     end
   end
 
   def root
     parse '/', true
-    count = $redis.scard 'new-links'
-    @total = count
-    info "Level 1: found #{count} links: parsing its"
-    count = $redis.scard 'new-links'
-    @total += count
-    info "Level 2: found #{count} links: parsing its"
-    info "crawled #{@total} total links"
-    $redis.hgetall(:success).each do |path|
-      info path
-    end
-    $redis.hgetall(:error).each do |path|
-      error path
-    end
+    # count = $redis.scard 'new-links'
+    # @total = count
+    # info "Level 1: found #{count} links: parsing its"
+    # count = $redis.scard 'new-links'
+    # @total += count
+    # info "Level 2: found #{count} links: parsing its"
+    # info "crawled #{@total} total links"
   end
 
   private
@@ -52,10 +48,11 @@ class Crawler
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
       unless $redis.sismember 'visited-links', path
+        idle = $redis.get('idle')
         $redis.multi do
           if $redis.sadd 'new-links', path
             $redis.sadd 'visited-links', path
-            $redis.spop 'idle', object_id
+            $redis.decr 'idle' unless (idle == 0 || idle.nil? )
             $redis.lpush 'blocker', true
           end
         end
@@ -88,19 +85,48 @@ class Crawler
     error e.message
     retry
   end
+end
 
+class Observer
+  include Celluloid
+  include Celluloid::Logger
+  include Celluloid::Notifications
+
+  def initialize
+    subscribe 'going idle', :on_idle
+  end
+
+  def on_idle(topic)
+    info "count: #{$redis.get('idle')}"
+    if $redis.get('idle').to_i >= POOL_SIZE
+      signal :all_idle
+    end
+  end
+
+  def wait_all_idle
+    wait(:all_idle)
+    total = $redis.scard 'visited-links'
+    errors = $redis.hkeys(:error).count
+    oks = $redis.hkeys(:success).count
+    info "crawled #{total} links, #{oks} OK, #{errors} errors"
+    $redis.hgetall(:success).each do |path|
+      info path
+    end
+    $redis.hgetall(:error).each do |path|
+      error path
+    end
+    info "exiting"
+  end
 end
 
 @domain = ARGV[0]
 
-POOL_SIZE = 10
+POOL_SIZE = 9
 
-#supervisor = Crawler.supervise "http://#{@domain}"
-#root = supervisor.actors.first
 root = Crawler.new "http://#{@domain}"
 root.root
 
 pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
-futures = (1..POOL_SIZE).map { |x| pool.future.start }
-
-futures.map { |f| f.value }
+(1..POOL_SIZE).map { |x| pool.async.start }
+observer = Observer.new
+observer.wait_all_idle

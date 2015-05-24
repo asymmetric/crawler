@@ -7,8 +7,7 @@ $redis.flushdb
 
 class Crawler
   include Celluloid
-
-  LOGS_DIR = "logs"
+  include Celluloid::Logger
 
   def initialize url
     @connection = Excon.new(
@@ -16,14 +15,12 @@ class Crawler
       persistent: true,
       middlewares: Excon.defaults[:middlewares] + [ Excon::Middleware::RedirectFollower ]
     )
-    @logger_ok = ::Logger.new("#{LOGS_DIR}/crawler.log")
-    @logger_err = ::Logger.new("#{LOGS_DIR}/crawler.error.log")
   end
 
   def start
     loop do
       while (link = $redis.spop 'new-links') do
-        @logger_ok.info "parsing #{link}"
+        info "parsing #{link}"
         parse link, true
       end
       $redis.brpop 'blocker'
@@ -34,16 +31,16 @@ class Crawler
     parse '/', true
     count = $redis.scard 'new-links'
     @total = count
-    @logger_ok.info "Level 1: found #{count} links: parsing its"
+    info "Level 1: found #{count} links: parsing its"
     count = $redis.scard 'new-links'
     @total += count
-    @logger_ok.info "Level 2: found #{count} links: parsing its"
-    @logger_ok.info "crawled #{@total} total links"
+    info "Level 2: found #{count} links: parsing its"
+    info "crawled #{@total} total links"
     $redis.hgetall(:success).each do |path|
-      @logger_ok.info path
+      info path
     end
     $redis.hgetall(:error).each do |path|
-      @logger_ok.error path
+      error path
     end
   end
 
@@ -70,7 +67,7 @@ class Crawler
     if get_links
       if status_code < 400
         $redis.hmset :success, path, status_code
-        # @logger_ok.debug "#{status_code} : #{path}"
+        # debug "#{status_code} : #{path}"
         doc = Nokogiri::HTML(response.body)
         doc.css('a').each do |node|
           # insert the link
@@ -80,23 +77,19 @@ class Crawler
         end
       else
         $redis.hmset :error, path, status_code
-        @logger_err.error "#{status_code}: #{path}"
+        error "#{status_code}: #{path}"
       end
     end
   rescue URI::InvalidURIError
-    @logger_err.error "Error parsing #{path}"
+    error "Error parsing #{path}"
   rescue Excon::Errors::SocketError => e
-    @logger_err.error e.message
+    error e.message
     retry
   end
 
 end
 
 @domain = ARGV[0]
-
-unless File.directory?(Crawler::LOGS_DIR)
-  FileUtils.mkdir_p(Crawler::LOGS_DIR)
-end
 
 POOL_SIZE = 10
 

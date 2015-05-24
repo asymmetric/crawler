@@ -120,7 +120,6 @@ root = Crawler.new "http://#{@domain}"
 root.root
 
 pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
-Celluloid::Actor[:pool] = pool
 
 observer = Observer.new
 Celluloid::Actor[:observer] = observer

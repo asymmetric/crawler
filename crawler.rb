@@ -83,8 +83,11 @@ class Crawler
         @logger_err.error "#{status_code}: #{path}"
       end
     end
-    rescue URI::InvalidURIError
-      @logger_err.error "Error parsing #{path}"
+  rescue URI::InvalidURIError
+    @logger_err.error "Error parsing #{path}"
+  rescue Excon::Errors::SocketError => e
+    @logger_err.error e.message
+    retry
   end
 
 end

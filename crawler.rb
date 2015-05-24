@@ -22,7 +22,7 @@ class Crawler
     loop do
       while (link = $redis.spop 'new-links') do
         debug "Thread #{Thread.current.object_id} parsing #{link}"
-        parse link, true
+        parse link
       end
       if $redis.brpop('blocker', 1).nil?
         Actor[:observer].async.job_done
@@ -32,7 +32,7 @@ class Crawler
   end
 
   def root
-    parse '/', true
+    parse '/'
   end
 
   private
@@ -50,22 +50,21 @@ class Crawler
     end
   end
 
-  def parse path, get_links=false
+  def parse path
     response = @connection.get(path: path, persistent: true)
     status_code = response.status
-    if get_links
-      if status_code < 400
-        $redis.hmset :success, path, status_code
-        doc = Oga.parse_html(response.body)
-        doc.xpath('//a/@href').each do |a|
-          # insert the link
-          link = a.value
-          add_link link
-        end
-      else
-        $redis.hmset :error, path, status_code
-        error "#{status_code}: #{path}"
+
+    if status_code < 400
+      $redis.hmset :success, path, status_code
+      doc = Oga.parse_html(response.body)
+      doc.xpath('//a/@href').each do |a|
+        # insert the link
+        link = a.value
+        add_link link
       end
+    else
+      $redis.hmset :error, path, status_code
+      error "#{status_code}: #{path}"
     end
   rescue URI::InvalidURIError
     error "Error parsing #{path}"

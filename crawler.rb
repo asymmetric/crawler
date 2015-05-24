@@ -8,6 +8,7 @@ $redis.flushdb
 class Crawler
   include Celluloid
   include Celluloid::Logger
+  include Celluloid::Notifications
 
   def initialize url
     @connection = Excon.new(
@@ -20,28 +21,18 @@ class Crawler
   def start
     loop do
       while (link = $redis.spop 'new-links') do
-        info "parsing #{link}"
+        debug "Thread #{Thread.current.object_id} parsing #{link}"
         parse link, true
       end
-      $redis.brpop 'blocker'
+      if $redis.brpop('blocker', 1).nil?
+        Actor[:observer].async.job_done
+        break
+      end
     end
   end
 
   def root
     parse '/', true
-    count = $redis.scard 'new-links'
-    @total = count
-    info "Level 1: found #{count} links: parsing its"
-    count = $redis.scard 'new-links'
-    @total += count
-    info "Level 2: found #{count} links: parsing its"
-    info "crawled #{@total} total links"
-    $redis.hgetall(:success).each do |path|
-      info path
-    end
-    $redis.hgetall(:error).each do |path|
-      error path
-    end
   end
 
   private
@@ -51,12 +42,10 @@ class Crawler
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
       unless $redis.sismember 'visited-links', path
-        $redis.multi do
           if $redis.sadd 'new-links', path
             $redis.sadd 'visited-links', path
             $redis.lpush 'blocker', true
           end
-        end
       end
     end
   end
@@ -86,19 +75,55 @@ class Crawler
     error e.message
     retry
   end
+end
 
+class Observer
+  include Celluloid
+  include Celluloid::Logger
+  include Celluloid::Notifications
+
+  def initialize
+    @workers_left = POOL_SIZE
+  end
+
+  def job_done
+    @workers_left -= 1
+
+    if @workers_left == 0
+      signal(:all_idle)
+    end
+  end
+
+  def wait_all_idle
+    wait(:all_idle)
+    total = $redis.scard 'visited-links'
+    errors = $redis.hkeys(:error).count
+    oks = $redis.hkeys(:success).count
+    info "crawled #{total} links, #{oks} OK, #{errors} errors"
+    if errors > 0
+      info "ERRORS:"
+      info "------------------------"
+      $redis.hgetall(:error).each do |entry|
+        error "#{entry[0]}: #{entry[1]}"
+      end
+      info "------------------------"
+    end
+    debug "exiting"
+  end
 end
 
 @domain = ARGV[0]
 
-POOL_SIZE = 10
+POOL_SIZE = 3
 
-#supervisor = Crawler.supervise "http://#{@domain}"
-#root = supervisor.actors.first
 root = Crawler.new "http://#{@domain}"
 root.root
 
 pool = Crawler.pool(size: POOL_SIZE, args: "http://#{@domain}")
-futures = (1..POOL_SIZE).map { |x| pool.future.start }
 
-futures.map { |f| f.value }
+observer = Observer.new
+Celluloid::Actor[:observer] = observer
+
+(1..POOL_SIZE).map { |x| pool.async.start }
+
+observer.wait_all_idle

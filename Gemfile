@@ -1,7 +1,7 @@
 source 'https://rubygems.org'
 
 gem 'excon'
-gem 'nokogiri'
+gem 'oga'
 gem 'awesome_print'
 gem 'logger'
 gem 'redis'

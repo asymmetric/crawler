@@ -9,6 +9,9 @@ error.
 Usage
 -----
 
+**Warning**: This script flushes the Redis DB it uses (#15), so if you don't
+want to lose your data, run it against its own instance of Redis.
+
 After running `bundle install`:
 
 * run redis with `bundle exec foreman` or `redis-server -c redis/redis.conf`

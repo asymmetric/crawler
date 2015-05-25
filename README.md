@@ -9,7 +9,10 @@ error.
 Usage
 -----
 
-After running `bundle install`, run it with `bundle exec ruby crawler.rb example.com`.
+After running `bundle install`:
+
+* run redis with `bundle exec foreman` or `redis-server -c redis/redis.conf`
+* run the crawler with `bundle exec ruby crawler.rb example.com`
 
 Testing locally
 ---------------

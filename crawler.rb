@@ -66,8 +66,10 @@ class Crawler
       $redis.hmset :error, path, status_code
       error "#{status_code}: #{path}"
     end
-  rescue URI::InvalidURIError
+  rescue LL::ParserError
     error "Error parsing #{path}"
+  rescue URI::InvalidURIError
+    error "Error fetching #{path}"
   rescue Excon::Errors::SocketError => e
     error e.message
     retry

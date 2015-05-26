@@ -42,10 +42,12 @@ class Crawler
     path.gsub!(/#(.*)$/, '')
     unless path.match(/^$|^#|^http|^mailto|\/redirect\?goto/)
       unless $redis.sismember 'visited-links', path
+        $redis.multi do
           if $redis.sadd 'new-links', path
             $redis.sadd 'visited-links', path
             $redis.lpush 'blocker', true
           end
+        end
       end
     end
   end
